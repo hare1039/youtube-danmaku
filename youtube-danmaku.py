@@ -40,25 +40,30 @@ def convert_yt_comments(jsonname, comment_duration, outputname):
 
     start_time_shift = yt_comments[0]["video_offset_time_msec"]
 
-    comment_count = []
+    comment_channel = []
+    comment_size = 20
+    for i in range(0, subs.info["PlayResY"], comment_size):
+        comment_channel.append(None)
+
     for msg in yt_comments:
         now = msg["video_offset_time_msec"]
 
         if not msg["message"]:
             continue
 
-        new_count = []
-        for c in comment_count:
-            if c["video_offset_time_msec"] > now - 1000:
-                new_count.append(c)
+        selected_channel = 1
+        for index, chan in enumerate(comment_channel):
+            if (not chan or
+                chan["video_offset_time_msec"] + (200 * len(msg["message"])) < now):
+                comment_channel[index] = msg
+                selected_channel = index + 1
+                break
 
-        comment_count = new_count
-        comment_count.append(msg)
-
-        movement = ("{\move(384," + str(len(comment_count) * 20) +
-                    ",0," + str(len(comment_count) * 20) +
+        movement = ("{\move(414," + str(selected_channel * 20) +
+                    ",-30," + str(selected_channel * 20) +
                     ",0," + str(comment_duration) +
                     ")}")
+
         subs.append(pysubs2.SSAEvent(start=pysubs2.make_time(ms=msg["video_offset_time_msec"]),
                                      end=pysubs2.make_time(ms=msg["video_offset_time_msec"] + comment_duration),
                                      text=movement+msg["message"]))
@@ -87,6 +92,7 @@ def main(args):
                         "-map", "1",
                         "-hide_banner",
                         "-loglevel", "panic",
+                        "-y",
                         result["title"] + "-" + id + ".mkv"])
 
         os.remove(id + ".mkv")
