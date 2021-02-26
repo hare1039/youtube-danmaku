@@ -7,8 +7,7 @@ import subprocess
 import pysubs2
 import json
 import pprint
-
-CHAT_DL_PATH="/Users/hare1039/Documents/gitprojects/chat-replay-downloader"
+import chat_downloader
 
 def ytdl(url):
     ydl_opts = {
@@ -21,13 +20,8 @@ def ytdl(url):
         return result, ydl.prepare_filename(result)
 
 def ytdl_comments(url, jsonname):
-    r = subprocess.run(["python3",
-                        CHAT_DL_PATH + "/chat_replay_downloader.py",
-                        "-output", jsonname,
-                        "-message_type", "all",
-                        "--hide_output",
-                        url])
-    return r.returncode == 0
+    chat_downloader.run(url=url, output=jsonname, quiet=True)
+    return True
 
 def convert_yt_comments(jsonname, comment_duration, video_info, outputname):
     with open(jsonname) as f:
@@ -40,7 +34,7 @@ def convert_yt_comments(jsonname, comment_duration, video_info, outputname):
     subs.info["PlayResX"] = 384
     subs.info["PlayResY"] = 288
 
-    start_time_shift = yt_comments[0]["video_offset_time_msec"]
+    start_time_shift = yt_comments[0]["time_in_seconds"] * 1000
 
     comment_channel = []
     comment_size = 20
@@ -48,7 +42,7 @@ def convert_yt_comments(jsonname, comment_duration, video_info, outputname):
         comment_channel.append(None)
 
     for msg in yt_comments:
-        now = msg["video_offset_time_msec"]
+        now = msg["time_in_seconds"] * 1000
         if now > video_info["duration"] * 1000:
 #            print(now, ">", video_info["duration"] * 1000)
             continue
@@ -59,7 +53,7 @@ def convert_yt_comments(jsonname, comment_duration, video_info, outputname):
         selected_channel = 1
         for index, chan in enumerate(comment_channel):
             if (not chan or
-                chan["video_offset_time_msec"] + (200 * len(msg["message"])) < now):
+                chan["time_in_seconds"] * 1000 + (200 * len(msg["message"])) < now):
                 comment_channel[index] = msg
                 selected_channel = index + 1
                 break
@@ -69,8 +63,8 @@ def convert_yt_comments(jsonname, comment_duration, video_info, outputname):
                     ",0," + str(comment_duration) +
                     ")}")
 
-        subs.append(pysubs2.SSAEvent(start=pysubs2.make_time(ms=msg["video_offset_time_msec"]),
-                                     end=pysubs2.make_time(ms=msg["video_offset_time_msec"] + comment_duration),
+        subs.append(pysubs2.SSAEvent(start=pysubs2.make_time(ms=msg["time_in_seconds"] * 1000),
+                                     end=pysubs2.make_time(ms=(msg["time_in_seconds"] * 1000) + comment_duration),
                                      text=movement+msg["message"]))
 
     subs.shift(ms=-start_time_shift+100)
